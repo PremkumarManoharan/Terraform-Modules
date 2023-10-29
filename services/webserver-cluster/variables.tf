@@ -3,6 +3,27 @@ variable "cluster_name" {
   description = "The name to be used for cluster resources"
   type = string
 }
+variable "custom_tags" {
+  description = "The name to be used for cluster resources"
+  type = map(string)
+}
+
+variable "enable_autoscaling" {
+  description = "If set to true , enable auto scaling"
+  type = bool
+}
+
+variable "ami" {
+  description = "The AMI to run the clsuter"
+  type = string
+  default = "ami-0261755bbcb8c4a84"
+}
+
+variable "server_text" {
+  description = "The text the web server should return"
+  type = string
+  default = "Hello, from Terraform infra"
+}
 
 variable "db_remote_address" {
   description = "The address of the s3 bucket for the database's remote state"

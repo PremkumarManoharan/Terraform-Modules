@@ -12,7 +12,7 @@ data "aws_subnets" "default" {
 
 resource "aws_launch_configuration" "instance" {
 
-    image_id = "ami-024e6efaf93d85776"
+    image_id = var.ami
     instance_type = var.instance_type
     security_groups = [aws_security_group.instance.id]
     
@@ -20,6 +20,7 @@ resource "aws_launch_configuration" "instance" {
       server_port = local.server_port
       db_address = var.db_remote_address
       db_port = var.db_remote_port
+      server_text = var.server_text
     })
     lifecycle {
       create_before_destroy = true
@@ -40,18 +41,58 @@ resource "aws_security_group_rule" "allow_port_8080" {
   cidr_blocks = local.all_ips
 }
 
+
 resource "aws_autoscaling_group" "alb_asg" {
+  name = var.cluster_name
   launch_configuration = aws_launch_configuration.instance.name
   vpc_zone_identifier = data.aws_subnets.default.ids
   min_size = var.min_size
   max_size = var.max_size
   target_group_arns = [aws_lb_target_group.asg.arn]
   health_check_type = "ELB"
+
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      min_healthy_percentage = 50
+    }
+  }
   tag {
     key = "Name"
     value = "${var.cluster_name}-alb-asg"
     propagate_at_launch = true
   }
+  dynamic "tag" {
+    for_each = var.custom_tags
+    content {
+      key = tag.key
+      value = tag.value
+      propagate_at_launch = true
+    }
+  }
+}
+
+resource "aws_autoscaling_schedule" "scale_out_during_business_hours" {
+  count = var.enable_autoscaling ? 1 : 0
+  scheduled_action_name = "scale_out_during_business_hours"
+  min_size = 2
+  max_size = 10
+  desired_capacity = 10
+  recurrence = "0 9 * * *"
+
+  autoscaling_group_name = aws_autoscaling_group.alb_asg.name
+}
+
+resource "aws_autoscaling_schedule" "scale_in_at_off_business_hours" {
+  count = var.enable_autoscaling ? 1 : 0
+  scheduled_action_name = "scale_in_at_off_business_hours"
+  min_size = 2
+  max_size = 10
+  desired_capacity = 2
+  recurrence = "0 17 * * *"
+
+  autoscaling_group_name = aws_autoscaling_group.alb_asg.name
+  
 }
 
 resource "aws_lb" "alb" {
